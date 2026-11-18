@@ -8,6 +8,8 @@ data/
 # frames/
 experiments/crops/
 experiments/preparados/
+experiments/folha_placas/
+experiments/webcam/
 
 
 # Byte-compiled / optimized / DLL files

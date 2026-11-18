@@ -1,2 +1,3 @@
 -r requirements-tf.txt
 pytest>=8
+pillow>=10  # experiments/folha_placas.py (placas simuladas para imprimir)

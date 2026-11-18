@@ -556,3 +556,46 @@ Escrito em 13/11/2026. Estado: o serviço já usa o OCR pronto **fast-plate-ocr 
 - O `Deduplicator` conta segundos de relógio; num vídeo gravado (processado mais rápido que o tempo real), 30 s cobrem mais vídeo. A votação conta quadros e não tem esse problema.
 - Os 94% são do RodoSol (placas do ES, mesma câmera); não valem automaticamente para SP.
 - Não se sabe se o RodoSol estava no treino do `cct-s-v2` original.
+
+
+## 23. Registro de 17/11/2026 (Senac): teste com placas impressas na webcam
+**Situação:** sem acesso ao estacionamento, a validação real (seção 22, item 1) foi trocada, por ora, por um **teste em ambiente controlado**: placas simuladas impressas em papel, mostradas à webcam USB.
+
+**O que existe no PC do Senac** (fora do git, conferido em 17/11):
+- `models/detector.keras` (treinado aqui em 10/11; 600 por pasta, 4800 imagens) e `models/ocr.keras` antigo.
+- OCR fast-plate-ocr **original** `cct-s-v2-global-model` no cache (`%USERPROFILE%\.cache\fast-plate-ocr`). O `.env` daqui usa `RECOGNITION_MODE=fpo` com ele.
+- **Não** tem o `models/ocr_fpo_br.onnx` ajustado (94%), que ficou no PC de casa. Trazer no pendrive o `.onnx` + `ocr_fpo_br_plate_config.yaml` e usar com `--fpo-model models/ocr_fpo_br.onnx`.
+- `data/rodosol` completo (20 000 imagens).
+- Teste rápido em 17/11: detector + `cct-s-v2` original leram certo 4 imagens do RodoSol (uma por grupo).
+
+**Ferramentas novas (`experiments/`)**
+- `experiments/folha_placas.py`: gera placas **simuladas** (desenhadas com Pillow, sem imagem de dataset nem de carro real), texto aleatório em formato válido (`--seed 7` fixa o resultado).
+  - Saída em `experiments/folha_placas/` (no `.gitignore`): `folha_1.png`, `folha_2.png` (A4, 300 dpi, dividida na horizontal: Mercosul em cima, antiga embaixo), `folha_placas.pdf` (as duas páginas, para imprimir frente e verso) e `gabarito.csv`.
+  - Gabarito atual: folha 1 = `IDQ1R12` (Mercosul) e `JBN0614` (antiga); folha 2 = `CKG8N07` e `VDF9551`.
+  - Placa de carro 40x13 cm impressa a 47,5% (19 x 6,2 cm); fonte Bahnschrift do Windows (estilo DIN, **não** é a FE-Schrift/Mandatory oficial). Imprimir em "tamanho real"/100%.
+  - Sem rótulo de texto na folha: a ideia era evitar detecções falsas, mas elas continuaram (ver abaixo).
+- `experiments/webcam_placas.py`: teste manual ao vivo, com janela. Usa o `CameraSource` real, o detector e o `FastPlateReader` com os limiares do `.env`.
+  - Desenha cada detecção: **verde** = texto igual ao gabarito, **vermelho** = passou nos limiares mas errado, **cinza** = abaixo dos limiares (o serviço descartaria). Mostra det/ocr e largura em px.
+  - No topo: resolução, ms por quadro e a **faixa ideal de largura da placa** (35-80 px na entrada de 384 px do detector, convertida para a resolução da câmera; em 640 px de largura: ~58-133 px).
+  - Opções: índice da câmera (padrão 0), `--dshow`, `--largura/--altura`, `--fpo-model`, `--gabarito`. Teclas: `s` salva quadro, `q`/Esc sai.
+  - Grava `experiments/webcam/leituras_<data>.csv` (no `.gitignore`) e imprime um resumo: leituras aceitas por texto, as fora do gabarito e as placas do gabarito nunca lidas.
+  - Mostra a placa completa de propósito (ferramenta de desenvolvimento, só com placas simuladas).
+
+**Verificação feita (sem webcam; nenhuma câmera estava conectada nos índices 0-2)**
+- `webcam_placas` rodou de ponta a ponta com um vídeo sintético (folha antiga rolando em 640x480): janela, CSV e resumo funcionaram.
+- Placas simuladas reduzidas ao tamanho da webcam (640x480, leve desfoque), detector + `cct-s-v2` original: **14 de 16 leituras certas**.
+  - `JBN0614`, `CKG8N07` e `VDF9551` foram lidas certo em 70, 100, 130 e 180 px de largura.
+  - `IDQ1R12` errou abaixo de ~130 px (`IDQ1R112`, `IDQ1R122`) e acertou a partir de 130 px.
+  - Detecções falsas pequenas (20-74 px, texto tipo `C8888`) aparecem na borda/fundo; o OCR descarta pela confiança (~0,40 < 0,95).
+- Isto é simulação digital: o número que vale é o da folha impressa na webcam (próximo passo).
+
+**Ambiente (`.venv` do Senac)**
+- A `.venv` (criada com uv) não tinha pip: instalado com `python -m ensurepip`.
+- O `opencv-python-headless` (dependência transitiva, está no lock) sobrescrevia o `opencv-python` e o `cv2.imshow` não funcionava (`GUI: NONE`). Corrigido com `pip install --force-reinstall --no-deps opencv-python==5.0.0.93`. **Se a `.venv` for recriada pelo lock, o problema volta**; repetir o comando.
+- Pillow instalado (13.0.0) para `folha_placas.py`; adicionado ao `requirements-dev.txt`. Os locks (`requirements.lock`, `requirements-gpu.lock`) **não** foram regenerados (sem uv aqui).
+
+**Próximos passos**
+1. Imprimir `folha_placas.pdf`, conectar a webcam e rodar `.venv\Scripts\python.exe -m experiments.webcam_placas`.
+2. Registrar: resolução da câmera, distância em que a placa entra na faixa ideal, acerto por placa com luz normal, contraluz e ângulo de ~30°, e se precisou de `--dshow`. Papel a 47,5% da placa real: a distância equivalente para uma placa real é ~2,1x maior.
+3. Com o `ocr_fpo_br.onnx` trazido de casa, repetir com `--fpo-model models/ocr_fpo_br.onnx` e comparar.
+4. Depois: vídeo sintético até o backend (seção 22, item 2), com branch do Neon ou `eventId` de teste.

@@ -60,6 +60,17 @@ set KERAS_BACKEND=tensorflow
 ```
 Cuidados: confira que a 1ª época já começa perto de 85-89% de `val_plate_acc` (se não, os pesos não carregaram: a CLI usa `skip_mismatch=True` e não avisa). Use threads (`--workers 8`), não `--use-multiprocessing`, que no Windows fica ~7x mais lento. Na RTX 3060: ~1,6 min/época com 12 000 imagens.
 
+## Teste manual com webcam e placas impressas (ambiente controlado)
+Sem acesso ao estacionamento, o teste com a câmera USB real usa placas **simuladas** impressas em papel.
+```
+.venv\Scripts\python -m experiments.folha_placas      # gera experiments/folha_placas/folha_placas.pdf + gabarito.csv
+.venv\Scripts\python -m experiments.webcam_placas     # webcam 0; opções: 1, --dshow, --largura 1280 --altura 720, --fpo-model models/ocr_fpo_br.onnx
+```
+- **Folha:** A4 dividida na horizontal, uma placa por metade (Mercosul em cima, antiga embaixo), 2 páginas para frente e verso. Imprimir em "tamanho real"/100%. Placa de carro a 47,5% do real (19 x 6,2 cm); fonte Bahnschrift, não a oficial. Texto aleatório fixo pela `--seed`.
+- **Janela:** verde = leu igual ao gabarito; vermelho = passou nos limiares, mas errado; cinza = abaixo dos limiares. O topo mostra a faixa de largura ideal da placa em pixels: afaste ou aproxime a folha até entrar nela. `s` salva o quadro, `q` sai.
+- **Saída:** `experiments/webcam/leituras_<data>.csv` e um resumo no terminal. As duas pastas de saída ficam fora do git.
+- Precisa do `opencv-python` com janela: se `cv2.imshow` falhar (`GUI: NONE`), o `opencv-python-headless` sobrescreveu o pacote. Rode `.venv\Scripts\python -m pip install --force-reinstall --no-deps opencv-python==5.0.0.93`.
+
 ## Health
 - `GET /health/live`: o processo está de pé.
 - `GET /health/ready`: 200 com contadores (`frames`, `events_sent`, `duplicates`, `send_failures`, `invalid_plates`); 503 se a câmera não abriu ou o worker parou.

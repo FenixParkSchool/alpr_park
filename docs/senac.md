@@ -40,3 +40,7 @@ O serviço registra no log o sha256 e a data de cada modelo. Se faltar arquivo, 
 - `MIN_CONFIDENCE`, `DETECTOR_THRESHOLD`, `OCR_MIN_CONFIDENCE`: ajustar olhando `avaliacao.json`.
 - Se `e2e_formato_valido` for baixo em algum grupo (principalmente moto, de duas linhas), registrar no contexto antes de qualquer correção de caracteres.
 - Resolução da webcam: o detector foi treinado com frames 1280x720 reduzidos a 384 de largura; testar com a webcam real antes de confiar nos números.
+
+## 7. Teste com a webcam e placas impressas
+Ver o README, seção "Teste manual com webcam e placas impressas", e o `contexto_projeto.md`, seção 23.
+O PC do Senac tem o detector e o OCR original `cct-s-v2`, mas **não** o `ocr_fpo_br.onnx` ajustado: trazer de casa (`.onnx` + `_plate_config.yaml`) para comparar os dois.
