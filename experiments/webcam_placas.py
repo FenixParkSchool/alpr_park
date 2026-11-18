@@ -9,7 +9,7 @@ Uso:
   .venv\\Scripts\\python.exe -m experiments.webcam_placas            (webcam 0)
   .venv\\Scripts\\python.exe -m experiments.webcam_placas 1 --dshow --largura 1280 --altura 720
   ... --fpo-model models/ocr_fpo_br.onnx                             (OCR ajustado, se estiver aqui)
-Teclas: q/Esc sai, s salva o quadro anotado.
+Teclas: q/Esc (ou fechar a janela no X) sai, s salva o quadro anotado.
 
 Saídas em experiments/webcam/ (no .gitignore): leituras_<data>.csv e os quadros salvos.
 Mostra a placa completa de propósito (ferramenta de desenvolvimento; use placas impressas).
@@ -139,6 +139,9 @@ def main() -> None:
 
                 tecla = cv2.waitKey(1) & 0xFF
                 if tecla in (ord("q"), 27):
+                    break
+                # Fechar no X também encerra (sem isto o loop seguia com a câmera ligada).
+                if cv2.getWindowProperty(janela, cv2.WND_PROP_VISIBLE) < 1:
                     break
                 if tecla == ord("s"):
                     salvos += 1

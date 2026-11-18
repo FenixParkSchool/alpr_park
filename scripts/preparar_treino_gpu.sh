@@ -68,9 +68,9 @@ passo "6/8 Modelo de OCR pronto (fast-plate-ocr cct-s-v2) - baixa uma vez para ~
 passo "7/8 Arquivo .env (não vai para o git)"
 if [ ! -f .env ]; then
   sed -e 's/^RECOGNITION_MODE=fake/RECOGNITION_MODE=fpo/' \
-      -e 's/^OCR_MIN_CONFIDENCE=$/OCR_MIN_CONFIDENCE=0.95/' \
+      -e 's/^OCR_MIN_CONFIDENCE=$/OCR_MIN_CONFIDENCE=0.97/' \
       .env.example > .env
-  echo ".env criado a partir do .env.example (modo fpo, limiar 0.95). Preencha BACKEND_API_KEY."
+  echo ".env criado a partir do .env.example (modo fpo, limiar 0.97). Preencha BACKEND_API_KEY."
 else
   echo ".env já existe; não foi alterado."
 fi

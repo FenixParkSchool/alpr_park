@@ -37,10 +37,14 @@ No `.env`: `RECOGNITION_MODE=tf` (e `DETECTOR_MODEL_PATH`/`OCR_MODEL_PATH` se mu
 O serviço registra no log o sha256 e a data de cada modelo. Se faltar arquivo, `/health/ready` responde 503 com o motivo.
 
 ## 6. Decidir com os números (não com palpite)
-- `MIN_CONFIDENCE`, `DETECTOR_THRESHOLD`, `OCR_MIN_CONFIDENCE`: ajustar olhando `avaliacao.json`.
+- `MIN_CONFIDENCE`, `DETECTOR_THRESHOLD`, `OCR_MIN_CONFIDENCE`: ajustar olhando `avaliacao.json`. Em `RECOGNITION_MODE=fpo`, `OCR_MIN_CONFIDENCE=0.97` (webcam, 18/11/2026; `contexto_projeto.md`, seção 24).
 - Se `e2e_formato_valido` for baixo em algum grupo (principalmente moto, de duas linhas), registrar no contexto antes de qualquer correção de caracteres.
 - Resolução da webcam: o detector foi treinado com frames 1280x720 reduzidos a 384 de largura; testar com a webcam real antes de confiar nos números.
 
 ## 7. Teste com a webcam e placas impressas
-Ver o README, seção "Teste manual com webcam e placas impressas", e o `contexto_projeto.md`, seção 23.
-O PC do Senac tem o detector e o OCR original `cct-s-v2`, mas **não** o `ocr_fpo_br.onnx` ajustado: trazer de casa (`.onnx` + `_plate_config.yaml`) para comparar os dois.
+Ver o README, seção "Teste manual com webcam e placas impressas", e o `contexto_projeto.md`, seções 23 e 24.
+Desde 18/11/2026 o PC do Senac também tem os modelos do PC de casa (copiados por pendrive, fora do git): `ocr_fpo_br.onnx` + `_plate_config.yaml`, `fpo_base/` e o detector retreinado (`e4696ddb...`). O detector antigo daqui ficou em `models/senac_10-11/`.
+Webcam: Logitech C920e no índice 0, com `--dshow`:
+```
+.venv\Scripts\python.exe -m experiments.webcam_placas 0 --dshow --largura 1280 --altura 720 --fpo-model models/ocr_fpo_br.onnx
+```

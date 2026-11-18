@@ -1,6 +1,6 @@
 # Contexto do projeto: Microserviço ALPR (reconhecimento de placas)
 
-> Arquivo de handoff para outra conversa do Claude. Descreve o que já foi construído, as decisões tomadas e o que falta. Baseado no estado dos arquivos do repositório até 06/11/2026 (seção 8 resume o que mudou nesta data). Os testes citados existem; a contagem de testes passando está na seção 8 e foi reportada pela execução do usuário/agente, não reverificada aqui.
+> Arquivo de handoff para outra conversa do Claude. Descreve o que já foi construído, as decisões tomadas e o que falta. Baseado no estado dos arquivos do repositório até 06/11/2026 (seção 8 resume o que mudou nesta data). Os testes citados existem; a contagem de testes passando está na seção 8 e foi reportada pela execução do usuário/agente, não reverificada aqui. **Para retomar, ler as últimas seções: a mais recente é a 24 (18/11/2026).**
 
 ## 1. Objetivo e fronteira
 
@@ -599,3 +599,32 @@ Escrito em 13/11/2026. Estado: o serviço já usa o OCR pronto **fast-plate-ocr 
 2. Registrar: resolução da câmera, distância em que a placa entra na faixa ideal, acerto por placa com luz normal, contraluz e ângulo de ~30°, e se precisou de `--dshow`. Papel a 47,5% da placa real: a distância equivalente para uma placa real é ~2,1x maior.
 3. Com o `ocr_fpo_br.onnx` trazido de casa, repetir com `--fpo-model models/ocr_fpo_br.onnx` e comparar.
 4. Depois: vídeo sintético até o backend (seção 22, item 2), com branch do Neon ou `eventId` de teste.
+
+
+## 24. Registro de 18/11/2026 (Senac): modelos de casa trazidos, 1º teste na webcam e limiar do OCR em 0.97
+**Modelos e dados do PC de casa copiados para o Senac** (pendrive `E:\alpr_park`, mesmo commit git `cf544b3`; só arquivos fora do git):
+- Agora o Senac tem `models/ocr_fpo_br.onnx` + `ocr_fpo_br_plate_config.yaml` (ajustado, 94%), `models/fpo_base/`, os treinos `models/fpo_*`, `models/avaliacao_fpo_br.json`, `data/fpo/` e os logs de casa (`logs/train_fpo_br.log`, `logs/train_detector_casa.log` etc.).
+- **Detector:** `models/detector.keras` agora é o retreinado em casa (13/11; sha256 `e4696ddb...`, val_loss 0,0079, 96,8% no teste). O antigo do Senac (10/11; `57be8512...`, val_loss 0,0090, 96,6%) e a avaliação feita com ele (`avaliacao_fpo_integrado.json`) ficaram em `models/senac_10-11/`.
+- Teste rápido: o `.onnx` ajustado carregou pelo `FastPlateReader` e leu certo 4 recortes do RodoSol (um por grupo, confiança 0,95-0,995).
+- O `.venv` de casa não foi copiado: os caminhos dele são da outra máquina.
+
+**Webcam:** Logitech C920e (USB `VID_046D&PID_08B6`), índice 0, funciona com `--dshow`. Quadros por segundo medidos com DirectShow: 640x480 ~30; 1280x720 ~10; 1920x1080 ~5. O formato padrão do DirectShow limita a taxa em alta resolução; MJPG não foi testado.
+
+**Teste ao vivo** (`experiments.webcam_placas 0 --dshow --largura 1280 --altura 720 --fpo-model models/ocr_fpo_br.onnx`):
+- Folha impressa na mão, luz do laboratório; 20:29-20:36, ~2 660 quadros, ~210 ms por quadro (detector + OCR em CPU). CSV: `experiments/webcam/leituras_20261118_202906.csv` (fora do git). Foto: `docs/img/webcam_placas_20261118.jpg` (no README).
+- Leituras aceitas por placa do gabarito (limiar antigo 0.95): `JBN0614` 281, `IDQ1R12` 222, `CKG8N07` 108, `VDF9551` 51. As 4 foram lidas.
+- Largura da placa nas leituras certas: 134-374 px (mediana ~240). Nenhuma leitura certa abaixo de ~130 px: não se sabe se a folha foi afastada além disso. A faixa "ideal" mostrada na janela em 1280x720 é 117-267 px.
+- **Erros aceitos com 0.95:** 14 de 676 (2%), como `JBN0611` (7x), `IDQ1R72` (3x), `JDN0614`, `CKG8N01`, `VDF9555`, `IBN0614`. Todos com confiança do OCR de 0,955 a 0,962 e isolados: a votação entre quadros os descartaria.
+- **Curva na webcam** (det >= 0.6, sem filtro de formato): 0.95 -> 678 aceitas / 16 erradas; 0.96 -> 651 / 7; **0.97 -> 603 / 0**; 0.98 -> 498 / 0.
+- **Fundo:** ~9 300 detecções falsas com det >= 0.6 (computadores, lousa); o OCR rejeitou todas (confiança máxima 0,969, abaixo de 0.97).
+
+**Decisão: `OCR_MIN_CONFIDENCE=0.97`** (antes 0.95). Alterados: `.env` local, comentário do `.env.example` (o valor continua vazio, porque o modo `fake` usa `MIN_CONFIDENCE`), `scripts/preparar_treino_gpu.sh`, README, `docs/plano_ocr.md`, `docs/senac.md`. No RodoSol, 0.97 = 92,8% de cobertura / 99,4% de precisão (seção 21). Na webcam perde ~9% das leituras certas, o que custa pouco: o veículo aparece em vários quadros. Continua a valer conferir com placas reais (seção 22, item 1).
+
+**Correção no `experiments/webcam_placas.py`:** fechar a janela no X não encerrava o script (a câmera seguia ligada e o resumo não saía). Agora o X encerra como `q`/Esc (`cv2.getWindowProperty(..., WND_PROP_VISIBLE)`).
+
+**Limitações:** papel a 47,5% do tamanho real, fonte Bahnschrift (não oficial), só 4 placas, luz de escritório, sem ângulo nem contraluz. Não é número de placa real; serve para escolher o limiar e conferir a câmera.
+
+**Próximos passos**
+1. Completar o teste na webcam: distância máxima (até a placa sumir), contraluz, ângulo de ~30°, e o OCR original (sem `--fpo-model`) para comparar com o ajustado.
+2. Vídeo até o backend (seção 22, item 2), já com 0.97, `SAMPLE_INTERVAL_SECONDS` 0,25-0,5 e branch do Neon ou `eventId` de teste.
+3. Placas reais (seção 22, item 1) para decidir se `FPO_MODEL=models/ocr_fpo_br.onnx` vira o padrão e confirmar o 0.97.

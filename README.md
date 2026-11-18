@@ -29,7 +29,7 @@ Testes: `.venv\Scripts\python -m pytest tests/unit -q`
 | `FPO_MODEL` | `cct-s-v2-global-model` | modelo do fast-plate-ocr (nome do hub) **ou** caminho de um `.onnx` próprio (ex.: `models/ocr_fpo_br.onnx`, com `ocr_fpo_br_plate_config.yaml` ao lado), só em `fpo`; falha ao carregar = `/health/ready` 503 |
 | `DETECTOR_MODEL_PATH` / `OCR_MODEL_PATH` | `models/detector.keras` / `models/ocr.keras` | usados só em `tf`; modelo ausente = `/health/ready` 503 |
 | `DETECTOR_THRESHOLD` | `0.5` | limiar do mapa de probabilidade do detector |
-| `OCR_MIN_CONFIDENCE` | vazio | se vazio, usa `MIN_CONFIDENCE` também no OCR |
+| `OCR_MIN_CONFIDENCE` | vazio | se vazio, usa `MIN_CONFIDENCE` também no OCR. Em `fpo`, use **`0.97`** (medido na webcam em 18/11/2026; ver "Teste manual com webcam") |
 | `VOTE_MAX_READS` | `3` | votação: envia o veículo depois de N leituras dele (provisório) |
 | `VOTE_GAP_FRAMES` | `3` | votação: ou depois de N quadros amostrados sem vê-lo (com 1 quadro/s, ~3 s; provisório) |
 
@@ -37,7 +37,8 @@ Testes: `.venv\Scripts\python -m pytest tests/unit -q`
 - Pacote `fast-plate-ocr[onnx]==1.1.0` (licença **MIT**), inferência ONNX Runtime em CPU. O detector continua sendo o nosso.
 - Medido no teste do RodoSol (4000 imagens): **78,9% de placa inteira ponta a ponta** (nosso OCR: 25,4%). *Teste RodoSol; pode ser otimista porque não se sabe se o RodoSol estava no treino do modelo.* Confiança = média das probabilidades dos caracteres reais (sem padding). Detalhes e curva por limiar: `models/avaliacao_fpo_integrado.json` (gerado por `experiments/avaliar_fpo.py`).
 - **Pesos offline:** na 1ª execução o pacote baixa o modelo (precisa de internet) para `~/.cache/fast-plate-ocr/<modelo>/` (Windows: pasta `.cache/fast-plate-ocr` dentro do perfil do usuário; contém um `.onnx` e um `_plate_config.yaml`). Para subir sem internet: rode uma vez com internet (por exemplo `.venv\Scripts\python -c "from app.recognition.fpo_reader import FastPlateReader as R; R.from_model('cct-s-v2-global-model')"`) e copie essa pasta para o mesmo caminho na máquina de destino. Sem cache e sem internet, o serviço sobe com `/health/ready` 503.
-- **Modelo ajustado no RodoSol** (`models/ocr_fpo_br.onnx`, fora do git): **94,0%** ponta a ponta no mesmo teste (original 79,7% com o detector atual; motos de 58-77% para 95%). Usar com `FPO_MODEL=models/ocr_fpo_br.onnx`. **Ainda não é o padrão**: falta comparar os dois em placas reais fora do RodoSol (ver `contexto_projeto.md`, seções 20 e 21).
+- **Modelo ajustado no RodoSol** (`models/ocr_fpo_br.onnx`, fora do git): **94,0%** ponta a ponta no mesmo teste (original 79,7% com o detector atual; motos de 58-77% para 95%). Usar com `FPO_MODEL=models/ocr_fpo_br.onnx`. **Ainda não é o padrão**: falta comparar os dois em placas reais fora do RodoSol (ver `contexto_projeto.md`, seções 20 e 21). Na webcam com placas impressas (18/11/2026) ele leu as 4 placas do gabarito; resultado na seção abaixo.
+- **Limiar do OCR (`OCR_MIN_CONFIDENCE`): 0.97.** No RodoSol, 0.97 cobre 92,8% com 99,4% de precisão (0.95: 94,5% / 98,8%). Na webcam, 0.95 deixou passar 2% de leituras erradas e 0.97 nenhuma. Ainda deve ser conferido com placas reais.
 
 ## Ajuste fino do OCR (GPU NVIDIA, Windows nativo, sem WSL2)
 O treino do fast-plate-ocr roda no backend **PyTorch** do Keras 3, que usa a GPU no Windows. O TensorFlow (CPU) só exporta o ONNX.
@@ -66,9 +67,30 @@ Sem acesso ao estacionamento, o teste com a câmera USB real usa placas **simula
 .venv\Scripts\python -m experiments.folha_placas      # gera experiments/folha_placas/folha_placas.pdf + gabarito.csv
 .venv\Scripts\python -m experiments.webcam_placas     # webcam 0; opções: 1, --dshow, --largura 1280 --altura 720, --fpo-model models/ocr_fpo_br.onnx
 ```
+Comando usado no PC do Senac (Logitech C920e no índice 0):
+```
+.venv\Scripts\python.exe -m experiments.webcam_placas 0 --dshow --largura 1280 --altura 720 --fpo-model models/ocr_fpo_br.onnx
+```
+Sem `--fpo-model`, usa o OCR original (`FPO_MODEL` do `.env`). Em 640x480 a C920e dá ~30 quadros/s; em 1280x720, ~10 (com `--dshow`), mas a placa sai maior.
 - **Folha:** A4 dividida na horizontal, uma placa por metade (Mercosul em cima, antiga embaixo), 2 páginas para frente e verso. Imprimir em "tamanho real"/100%. Placa de carro a 47,5% do real (19 x 6,2 cm); fonte Bahnschrift, não a oficial. Texto aleatório fixo pela `--seed`.
-- **Janela:** verde = leu igual ao gabarito; vermelho = passou nos limiares, mas errado; cinza = abaixo dos limiares. O topo mostra a faixa de largura ideal da placa em pixels: afaste ou aproxime a folha até entrar nela. `s` salva o quadro, `q` sai.
+- **Janela:** verde = leu igual ao gabarito; vermelho = passou nos limiares, mas errado; cinza = abaixo dos limiares. O topo mostra a faixa de largura ideal da placa em pixels: afaste ou aproxime a folha até entrar nela. `s` salva o quadro; `q`, Esc ou fechar a janela no X sai.
 - **Saída:** `experiments/webcam/leituras_<data>.csv` e um resumo no terminal. As duas pastas de saída ficam fora do git.
+
+### Resultado de 18/11/2026 (Senac, webcam Logitech C920e, OCR ajustado `ocr_fpo_br.onnx`)
+![Webcam lendo a placa impressa IDQ1R12 (caixa verde = igual ao gabarito)](docs/img/webcam_placas_20261118.jpg)
+
+Folha impressa na mão, luz do laboratório, 1280x720, ~7,5 min (~2 660 quadros, ~210 ms por quadro em CPU).
+
+| Placa | Leituras aceitas | Largura da placa (mín / mediana / máx) |
+|---|---|---|
+| `JBN0614` (antiga) | 281 | 148 / 267 / 374 px |
+| `IDQ1R12` (Mercosul) | 222 | 161 / 240 / 321 px |
+| `CKG8N07` (Mercosul) | 108 | 134 / 227 / 307 px |
+| `VDF9551` (antiga) | 51 | 147 / 254 / 281 px |
+
+- **Limiar do OCR:** com 0.95, 2% das leituras aceitas estavam erradas (`JBN0611`, `IDQ1R72`...), todas com confiança entre 0,955 e 0,962. Com **0.97**: 603 aceitas, **0 erradas** (perde ~9% das leituras certas, que a votação entre quadros compensa). Por isso o limiar passou a 0.97.
+- **Fundo:** o detector marca muitas regiões falsas (computadores, lousa), mas o OCR rejeita todas.
+- **Não medido ainda:** distância máxima (nenhuma leitura certa abaixo de ~130 px de largura), contraluz e ângulo. É papel com fonte não oficial, então não vale como número de placa real.
 - Precisa do `opencv-python` com janela: se `cv2.imshow` falhar (`GUI: NONE`), o `opencv-python-headless` sobrescreveu o pacote. Rode `.venv\Scripts\python -m pip install --force-reinstall --no-deps opencv-python==5.0.0.93`.
 
 ## Health

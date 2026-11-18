@@ -3,6 +3,9 @@
 Escrito em 12/11/2026, ao fim da sessão no Senac. Ler junto com `contexto_projeto.md`, seções 12 a 17.
 
 > **Status em 14/11/2026:** os critérios de sucesso da seção 3 foram atingidos **no teste do RodoSol** com o ajuste fino do fast-plate-ocr `cct-s-v2` (não com o nosso OCR): **94,0%** de placa inteira ponta a ponta (alvo 70%, excelente 85%). Com limiar 0.95, 98,8% de precisão cobrindo 94,5% (alvo: 98% cobrindo 60%). OCR 14 ms em CPU (alvo 50 ms). **Falta o critério "webcam/vídeo"** e medir o viés regional fora do ES. Os passos 1 a 3 deste plano (retificação, nova arquitetura, sintéticas) ficam **suspensos**: só voltam se a validação real mostrar falha que o ajuste fino não resolva. Detalhes: `contexto_projeto.md`, seções 20 e 21.
+>
+> **Atualização em 18/11/2026:** primeiro teste com webcam (Logitech C920e, placas **impressas**, ambiente controlado). O OCR ajustado leu as 4 placas do gabarito. `OCR_MIN_CONFIDENCE` passou de 0.95 para **0.97**: com 0.95, 2% das leituras aceitas na webcam estavam erradas; com 0.97, nenhuma. O critério "webcam/vídeo" está **parcialmente** atendido: falta vídeo com placas reais. O detector de referência agora é o retreinado em casa (sha256 `e4696ddb...`, 96,8%); o `57be8512...` da tabela abaixo ficou em `models/senac_10-11/`. Detalhes: `contexto_projeto.md`, seção 24.
+
 Objetivo: sair de ~25% de placa inteira (ponta a ponta) para um resultado **excelente e mensurável** no RodoSol-ALPR e utilizável com webcam.
 
 ## 1. Onde estamos (medido no conjunto de teste do RodoSol, 4000 imagens)
