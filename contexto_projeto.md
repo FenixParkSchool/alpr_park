@@ -1,6 +1,6 @@
 # Contexto do projeto: Microserviço ALPR (reconhecimento de placas)
 
-> Arquivo de handoff para outra conversa do Claude. Descreve o que já foi construído, as decisões tomadas e o que falta. Baseado no estado dos arquivos do repositório até 06/11/2026 (seção 8 resume o que mudou nesta data). Os testes citados existem; a contagem de testes passando está na seção 8 e foi reportada pela execução do usuário/agente, não reverificada aqui. **Para retomar, ler as últimas seções: a mais recente é a 24 (18/11/2026).**
+> Arquivo de handoff para outra conversa do Claude. Descreve o que já foi construído, as decisões tomadas e o que falta. Baseado no estado dos arquivos do repositório até 06/11/2026 (seção 8 resume o que mudou nesta data). Os testes citados existem; a contagem de testes passando está na seção 8 e foi reportada pela execução do usuário/agente, não reverificada aqui. **Para retomar, ler as últimas seções: a mais recente é a 25 (23/11/2026).**
 
 ## 1. Objetivo e fronteira
 
@@ -628,3 +628,24 @@ Escrito em 13/11/2026. Estado: o serviço já usa o OCR pronto **fast-plate-ocr 
 1. Completar o teste na webcam: distância máxima (até a placa sumir), contraluz, ângulo de ~30°, e o OCR original (sem `--fpo-model`) para comparar com o ajustado.
 2. Vídeo até o backend (seção 22, item 2), já com 0.97, `SAMPLE_INTERVAL_SECONDS` 0,25-0,5 e branch do Neon ou `eventId` de teste.
 3. Placas reais (seção 22, item 1) para decidir se `FPO_MODEL=models/ocr_fpo_br.onnx` vira o padrão e confirmar o 0.97.
+
+
+## 25. Registro de 23/11/2026 (Senac): integração com o backend conferida para o deploy na Azure
+**Repos atualizados** (`git pull`): Front_Park +31 commits, Back_park `main` +44 (`aed2e5f`), py_vision_park sem mudanças. A branch `fix/restaura-evento-alpr` do Back_park (já no PR #63, 13/11) foi apagada no local e no GitHub; o conteúdo dela continua intacto na `main`.
+
+**Integração conferida (só leitura + testes locais, sem gravar no banco)**
+- Contrato igual dos dois lados: `POST /eventos-alpr`, `X-API-Key`, body camelCase estrito (`createEventoAlprBody` no Back_park = `PlateEvent` aqui), idempotência por `eventId`, 503 sem `ALPR_API_KEY` (o cliente não reenvia).
+- Commits novos do Back_park (helmet/CSP, CORS, `originGuard`, workflows) não afetam o ALPR: o `originGuard` só bloqueia quando há `Origin`, e o httpx não manda. O `limiter` global (300 req/15 min por IP) vale para `/eventos-alpr`.
+- Back_park: `tsc --noEmit` e `npm run build` ok. py_vision_park: 192 passed, 2 skipped (os ponta a ponta, que exigem `E2E_BACKEND_URL`).
+
+**Bloqueios para usar o backend na Azure**
+1. **Host da API não existe no DNS:** `api-t13-tecinfo`, `api-t13-teste`, `apit13-tecin` e `apit13teste` `.azurewebsites.net` dão NXDOMAIN (DNS do Senac e 8.8.8.8). O Front_Park usa `api-t13-tecinfo` no `.env.production` e no CSP de `public/_headers`. Pegar a URL real no portal (talvez com o sufixo único `<app>-<hash>.<região>-01.azurewebsites.net`) ou o app foi apagado. Sem Azure CLI nesta máquina.
+2. **`ALPR_API_KEY` só nos secrets do GitHub:** valem no build/teste do Actions, não no App Service. Cadastrar em App Service → Variáveis de ambiente (mínimo 32 caracteres) e usar o mesmo valor em `BACKEND_API_KEY`.
+3. **Workflow `main_api-t13-teste.yml` com YAML quebrado** (`steps` fora do job, `deploy` dentro do build, upload da pasta e `unzip release.zip` no deploy). Corrigido em 23/11 no Back_park, no mesmo formato dos outros três workflows (zip -> upload -> download -> unzip). Validado só como YAML; ainda não rodou no GitHub.
+
+**Decisão pendente: onde roda o microsserviço.** Ele lê a câmera diretamente; na Azure só funciona com stream acessível pela internet (RTSP/HTTP), webcam USB não. Alternativa comum: rodar num PC ao lado da câmera e mandar os eventos para a API na Azure. Se for na Azure: falta Dockerfile, levar os modelos (fora do git) e CPU para ~210 ms por quadro.
+
+**Próximos passos**
+1. Obter a URL real da API e cadastrar `ALPR_API_KEY` no App Service.
+2. Rodar `tests/integration/test_backend_real.py` contra ela (`E2E_BACKEND_URL`, `E2E_BACKEND_API_KEY`). Grava no banco compartilhado (Neon) com `eventId` de teste e apaga no fim: só com autorização.
+3. Decidir onde o microsserviço roda; depois Dockerfile/deploy.

@@ -102,6 +102,13 @@ Body JSON camelCase e estrito (campo extra = 400): `eventId`, `cameraId`, `plate
 Idempotência por `eventId`: 201 novo, 200 `duplicado:true`, 409 corrida (reenvia).
 Reenvia em rede/timeout/409/429/5xx (429 respeita `Retry-After`, teto de 30s); não reenvia em 400/401/503.
 
+Conferido em 23/11/2026 contra a `main` do Back_park (`aed2e5f`): contrato igual; os middlewares novos (helmet, CORS, `originGuard`) não barram o serviço, porque o httpx não manda `Origin`. O limite global de 300 req/15 min por IP vale também para `/eventos-alpr`.
+
+### Backend na Azure (antes de apontar `BACKEND_URL` para lá)
+- `ALPR_API_KEY` precisa estar nas **variáveis de ambiente do App Service** (portal da Azure). O secret do GitHub só vale no build/teste do Actions; sem a variável no App Service, `/eventos-alpr` responde 503. `BACKEND_API_KEY` daqui = o mesmo valor.
+- Em 23/11/2026 nenhum dos hosts `api-t13-tecinfo`, `api-t13-teste`, `apit13-tecin`, `apit13teste` `.azurewebsites.net` resolvia no DNS (nem pelo 8.8.8.8). Pegar a URL real no portal (pode ter o sufixo único, `<app>-<hash>.<região>-01.azurewebsites.net`).
+- Este serviço lê a câmera diretamente: na Azure, `CAMERA_SOURCE` só funciona com um stream acessível pela internet (RTSP/HTTP); webcam USB não. Ainda não há Dockerfile nem deploy deste repositório.
+
 ## Políticas
 - **Perda de eventos:** se o backend rejeitar ou ficar indisponível após as tentativas, o evento é logado e **descartado**; não há fila nem banco. O worker continua.
 - **Uma leitura por veículo (votação):** leituras parecidas (até 2 caracteres diferentes) em quadros seguidos são do mesmo veículo. Ele é enviado **uma vez**, com o texto votado posição a posição (peso = confiança do OCR), depois de `VOTE_MAX_READS` leituras ou de `VOTE_GAP_FRAMES` quadros sem vê-lo. Depois disso, o `DEDUP_SECONDS` impede reenviar o mesmo veículo que reaparece. No fim do vídeo ou na parada da câmera, o que estava em votação é enviado. Código: `app/services/voter.py`.
